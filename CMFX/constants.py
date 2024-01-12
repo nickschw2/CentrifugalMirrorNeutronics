@@ -17,15 +17,20 @@ gas_offset = 0.87 * IN2CM
 HDPE_height = 13 * IN2CM
 HDPE_diameter = 5 * IN2CM
 
+Pb_thickness = 1/16 * IN2CM
+
 ### PLASMA ###
 plasma_outerRadius = 25
 plasma_innerRadius = 5
 plasma_length = 60
 
 ### SIMULATION ###
-void_radius = 100
+void_radius = 150
+void_length = 100
 particles = 50000
 
 root = '.'
 sweep_folder = 'param_sweeps'
+examples_folder = 'examples'
+source_pkl = 'source.pkl'
 file_prefix = 'run'

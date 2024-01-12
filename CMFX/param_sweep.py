@@ -3,10 +3,12 @@ from CMFX_source import *
 from constants import *
 import shutil
 import pandas as pd
+from itertools import product
 
-def run_sweep(name, variable, values, reset=False, plot=False):
-    results = pd.DataFrame()
+def run_sweep(name, variables, reset=False, plot=False):
     if reset:
+        results = pd.DataFrame()
+
         # Create directory for parameter sweeps
         if not os.path.isdir(f'{root}/{sweep_folder}'):
             os.mkdir(f'{root}/{sweep_folder}')
@@ -19,19 +21,23 @@ def run_sweep(name, variable, values, reset=False, plot=False):
             path = f'{root}/{sweep_folder}/{name}/{subdir}'
             if os.path.isdir(path) and file_prefix in subdir:
                 shutil.rmtree(path)
-                
-        # with Pool(processes=4) as pool:
-        for i, value in enumerate(values):
-            source = CMFX_Source(**{variable: value})
 
+        # Need to unpack the variables and their values into a list of keyword arguments to iterate over
+        values_list = list(product(*list(variables.values())))
+        kwargs_list = [{variable: value for variable, value in zip(variables.keys(), values)} for values in values_list]
+        
+        for i, kwargs in enumerate(kwargs_list):
             # Make a new folder for each run
             subdir = f'{file_prefix}_{i+1:03}'
             path = f'{root}/{sweep_folder}/{name}/{subdir}'
             os.mkdir(path)
 
+            # Create and run the simulation
+            source = CMFX_Source(**kwargs)
             source.run(path)
             result = source.read_results()
-            result[variable] = value
+            for variable, value in kwargs.items():
+                result[variable] = value
             results = pd.concat([results, result])
 
         results.to_csv(f'{root}/{sweep_folder}/{name}/results.csv')
@@ -39,19 +45,4 @@ def run_sweep(name, variable, values, reset=False, plot=False):
     else:
         results = pd.read_csv(f'{root}/{sweep_folder}/{name}/results.csv')
 
-    counts = np.zeros(len(values))
-    errors = np.zeros(len(values))
-
-    for i, (val, grp) in enumerate(results.groupby(variable)):
-        count = sum(grp['mean'])
-        std = sum(grp['std. dev.'])
-        counts[i] = count * particles
-        errors[i] = std * particles
-
-    if plot:
-        plt.errorbar(values, counts, yerr=errors)
-        plt.xlabel(f'{variable}')
-        plt.ylabel('Count')
-        plt.show()
-
-    return counts, errors
+    return results
