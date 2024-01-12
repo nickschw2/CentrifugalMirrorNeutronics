@@ -30,7 +30,6 @@ name = 'convergence'
 variables = {'particles': N_particles}
 convergenceResults = run_sweep(name, variables, reset=False)
 convergenceResults['MCSE'] = convergenceResults['std. dev.'] / convergenceResults['mean']
-# change
 
 convergenceResults.plot(x='particles', y='MCSE', logx=True)
 plt.xlabel('# Particles')
