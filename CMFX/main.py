@@ -28,8 +28,9 @@ source.plot_flux(section='parallel')
 N_particles = np.logspace(3, 6, 16).astype('int')
 name = 'convergence'
 variables = {'particles': N_particles}
-convergenceResults = run_sweep(name, variables, reset=True)
-convergenceResults['MCSE'] = convergenceResults['mean'] / convergenceResults['std. dev.']
+convergenceResults = run_sweep(name, variables, reset=False)
+convergenceResults['MCSE'] = convergenceResults['std. dev.'] / convergenceResults['mean']
+# change
 
 convergenceResults.plot(x='particles', y='MCSE', logx=True)
 plt.xlabel('# Particles')
