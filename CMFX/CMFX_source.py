@@ -33,22 +33,21 @@ class CMFX_Source():
         self.HDPE_material.add_s_alpha_beta('c_H_in_CH2') # Using thermal scattering data, need to compare to https://www.sciencedirect.com/science/article/pii/0168900287903706
         self.Pb_material = nmm.Material.from_library(name='Lead').openmc_material
 
-        self.hydrogen_material = nmm.Material.from_library(name='DD_plasma').openmc_material
+        self.plasma_material = nmm.Material.from_library(name='DD_plasma').openmc_material
 
-        self.materials = openmc.Materials([self.He3_material, self.detector_material, self.HDPE_material, self.Pb_material, self.hydrogen_material])
+        self.materials = openmc.Materials([self.He3_material, self.detector_material, self.HDPE_material, self.Pb_material, self.plasma_material])
 
     def set_geometry(self):
         # SURFACES
-        # large radius as MeV neutrons travel at cm per nano second (1e-9s)
         void_surface = openmc.model.RightCircularCylinder((0, 0, -void_length / 2), void_length, void_radius,
                                                           axis='z', boundary_type='vacuum')
         He3_cylinder = openmc.model.RightCircularCylinder((self.radialDistance, -He3_length / 2, self.axialDistance),
                                                           He3_length, He3_diameter / 2, axis='y')
-        detector_cylinder = openmc.model.RightCircularCylinder((self.radialDistance, -detector_length / 2, self.axialDistance),
+        detector_cylinder = openmc.model.RightCircularCylinder((self.radialDistance, -He3_length / 2 - gas_offset, self.axialDistance),
                                                                detector_length, detector_diameter / 2, axis='y')
         HDPE_surface = openmc.model.RightCircularCylinder((self.radialDistance, -HDPE_height / 2, self.axialDistance),
                                                           HDPE_height, HDPE_diameter / 2, axis='y')
-        Pb_surface = openmc.model.RightCircularCylinder((self.radialDistance, -HDPE_height / 2 + Pb_thickness, self.axialDistance),
+        Pb_surface = openmc.model.RightCircularCylinder((self.radialDistance, -HDPE_height / 2 - Pb_thickness, self.axialDistance),
                                                           HDPE_height + 2*Pb_thickness, HDPE_diameter / 2 + Pb_thickness, axis='y')
 
         plasma_outerSurface = openmc.model.RightCircularCylinder((0, 0, -plasma_length / 2), plasma_length,
@@ -62,7 +61,7 @@ class CMFX_Source():
         HDPE_region = (-HDPE_surface & +detector_cylinder)
         Pb_region = (-Pb_surface & +HDPE_surface)
         plasma_region = (-plasma_outerSurface & +plasma_innerSurface)
-        void_region = -void_surface & +HDPE_surface & ~plasma_region
+        void_region = -void_surface & +Pb_surface & ~plasma_region
 
         self.void_cell = openmc.Cell(region=void_region)
         self.He3_cell = openmc.Cell(region=He3_region)
@@ -74,8 +73,8 @@ class CMFX_Source():
         self.He3_cell.fill = self.He3_material
         self.detector_cell.fill = self.detector_material
         self.HDPE_cell.fill = self.HDPE_material
-        self.Pb_cell.fill = self.HDPE_material
-        self.plasma_cell.fill = self.hydrogen_material
+        self.Pb_cell.fill = self.Pb_material
+        self.plasma_cell.fill = self.plasma_material
 
         self.universe = openmc.Universe(cells=[self.void_cell, self.He3_cell, self.detector_cell, self.HDPE_cell, self.Pb_cell, self.plasma_cell])
         self.geometry = openmc.Geometry(root=self.universe)

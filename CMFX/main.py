@@ -8,7 +8,7 @@ from plot_style import *
 
 ### STANDARD SIMULATION ###
 path = f'{root}/{examples_folder}/standard'
-reset = False
+reset = True
 if reset:
     if os.path.isdir(path):
         shutil.rmtree(path)
@@ -17,12 +17,13 @@ if reset:
     results = source.read_results()
     results.to_csv(f'{path}/results.csv')
 else:
-    # result = pd.read_csv(f'{path}/results.csv')
+    result = pd.read_csv(f'{path}/results.csv')
     with open(f'{path}/{source_pkl}', 'rb') as file:
         source = pickle.load(file)
 
 source.plot_flux(section='perp')
 source.plot_flux(section='parallel')
+breakpoint()
 
 ### CONVERGENCE SWEEP ###
 N_particles = np.logspace(3, 6, 16).astype('int')
