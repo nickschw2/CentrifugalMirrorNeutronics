@@ -19,6 +19,15 @@ HDPE_diameter = 5 * IN2CM
 
 Pb_thickness = 1/16 * IN2CM
 
+### CHAMBER ###
+centerCondutor_radius = 1.5 * IN2CM
+centerCondutor_length = 100
+centerCondutor_thickness = 3/16 * IN2CM
+
+chamber_radius = 40
+chamber_length = 100
+chamber_thickness = 0.5 * IN2CM
+
 ### PLASMA ###
 plasma_outerRadius = 25
 plasma_innerRadius = 5
@@ -26,7 +35,7 @@ plasma_length = 60
 
 ### SIMULATION ###
 void_radius = 150
-void_length = 100
+void_length = 120
 particles = 50000
 
 root = '.'

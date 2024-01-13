@@ -26,7 +26,9 @@ class CMFX_Source():
         self.He3_material = nmm.Material.from_library(name='He-3 proportional gas').openmc_material
         self.He3_material.set_density("g/cm3", gas_pressure * TORR2DENSITY)
 
-        self.detector_material = nmm.Material.from_library(name='Aluminum, alloy 6061-O').openmc_material
+        self.Al_material = nmm.Material.from_library(name='Aluminum, alloy 6061-O').openmc_material
+        self.Steel_material = nmm.Material.from_library(name='Steel, Stainless 316L').openmc_material
+        
 
         self.HDPE_material = nmm.Material.from_library(name='Polyethylene, Non-borated').openmc_material
         self.HDPE_material.set_density("g/cm3", 0.95) # Need to change density to HDPE instead of LDPE
@@ -35,10 +37,12 @@ class CMFX_Source():
 
         self.plasma_material = nmm.Material.from_library(name='DD_plasma').openmc_material
 
-        self.materials = openmc.Materials([self.He3_material, self.detector_material, self.HDPE_material, self.Pb_material, self.plasma_material])
+        self.materials = openmc.Materials([self.He3_material, self.Al_material, self.Steel_material,
+                                           self.HDPE_material, self.Pb_material, self.plasma_material])
 
     def set_geometry(self):
-        # SURFACES
+        ### SURFACES ###
+        # Detector Surfaces
         void_surface = openmc.model.RightCircularCylinder((0, 0, -void_length / 2), void_length, void_radius,
                                                           axis='z', boundary_type='vacuum')
         He3_cylinder = openmc.model.RightCircularCylinder((self.radialDistance, -He3_length / 2, self.axialDistance),
@@ -50,10 +54,23 @@ class CMFX_Source():
         Pb_surface = openmc.model.RightCircularCylinder((self.radialDistance, -HDPE_height / 2 - Pb_thickness, self.axialDistance),
                                                           HDPE_height + 2*Pb_thickness, HDPE_diameter / 2 + Pb_thickness, axis='y')
 
+        # Plasma Surfaces
         plasma_outerSurface = openmc.model.RightCircularCylinder((0, 0, -plasma_length / 2), plasma_length,
-                                                          plasma_outerRadius, axis='z')
+                                                                 plasma_outerRadius, axis='z')
         plasma_innerSurface = openmc.model.RightCircularCylinder((0, 0, -plasma_length / 2), plasma_length,
-                                                          plasma_innerRadius, axis='z')
+                                                                 plasma_innerRadius, axis='z')
+        
+        # Center conductor surfaces
+        centerConductor_outerSurface = openmc.model.RightCircularCylinder((0, 0, -centerCondutor_length / 2),
+                                                                          centerCondutor_length, centerCondutor_radius, axis='z')
+        centerConductor_innerSurface = openmc.model.RightCircularCylinder((0, 0, -centerCondutor_length / 2),
+                                                                          centerCondutor_length, centerCondutor_radius - centerCondutor_thickness, axis='z')
+        
+        # Chamber surfaces
+        chamber_outerSurface = openmc.model.RightCircularCylinder((0, 0, -chamber_length / 2),
+                                                                  chamber_length, chamber_radius, axis='z')
+        chamber_innerSurface = openmc.model.RightCircularCylinder((0, 0, -chamber_length / 2),
+                                                                  chamber_length, chamber_radius - chamber_thickness, axis='z')
 
         # CELLS
         He3_region = -He3_cylinder
@@ -61,7 +78,9 @@ class CMFX_Source():
         HDPE_region = (-HDPE_surface & +detector_cylinder)
         Pb_region = (-Pb_surface & +HDPE_surface)
         plasma_region = (-plasma_outerSurface & +plasma_innerSurface)
-        void_region = -void_surface & +Pb_surface & ~plasma_region
+        centerConductor_region = (-centerConductor_outerSurface & +centerConductor_innerSurface)
+        chamber_region = (-chamber_outerSurface & +chamber_innerSurface)
+        void_region = -void_surface & +Pb_surface & ~plasma_region & ~centerConductor_region & ~chamber_region
 
         self.void_cell = openmc.Cell(region=void_region)
         self.He3_cell = openmc.Cell(region=He3_region)
@@ -69,14 +88,20 @@ class CMFX_Source():
         self.HDPE_cell = openmc.Cell(region=HDPE_region)
         self.Pb_cell = openmc.Cell(region=Pb_region)
         self.plasma_cell = openmc.Cell(region=plasma_region)
+        self.centerConductor_cell = openmc.Cell(region=centerConductor_region)
+        self.chamber_cell = openmc.Cell(region=chamber_region)
 
         self.He3_cell.fill = self.He3_material
-        self.detector_cell.fill = self.detector_material
+        self.detector_cell.fill = self.Al_material
         self.HDPE_cell.fill = self.HDPE_material
         self.Pb_cell.fill = self.Pb_material
         self.plasma_cell.fill = self.plasma_material
+        self.centerConductor_cell.fill = self.Steel_material
+        self.chamber_cell.fill = self.Al_material
 
-        self.universe = openmc.Universe(cells=[self.void_cell, self.He3_cell, self.detector_cell, self.HDPE_cell, self.Pb_cell, self.plasma_cell])
+        self.universe = openmc.Universe(cells=[self.void_cell, self.He3_cell, self.detector_cell,
+                                               self.HDPE_cell, self.Pb_cell, self.centerConductor_cell,
+                                               self.chamber_cell, self.plasma_cell])
         self.geometry = openmc.Geometry(root=self.universe)
 
     def set_source(self):
@@ -171,13 +196,13 @@ class CMFX_Source():
             fig, ax = plt.subplots()
             ax.set_aspect('equal', adjustable='box')
             if section == 'perp':
-                slice_df = flux_df[flux_df[('mesh 1', 'z')] == (self.N_points - 1) / 2]
+                slice_df = flux_df[flux_df[('mesh 1', 'z')] == int((self.N_points - 1) / 2)]
                 [X, Y] = np.meshgrid(x, y)
                 values = slice_df['mean'].to_numpy().reshape((self.N_points, self.N_points))
                 plt.contourf(X, Y, values, levels=15)
                 plt.xlabel('x (cm)')
             elif section == 'parallel':
-                slice_df = flux_df[flux_df[('mesh 1', 'x')] == (self.N_points - 1) / 2]
+                slice_df = flux_df[flux_df[('mesh 1', 'x')] == int((self.N_points - 1) / 2)]
                 [Z, Y] = np.meshgrid(z, y)
                 values = slice_df['mean'].to_numpy().reshape((self.N_points, self.N_points)).T
                 plt.contourf(Z, Y, values, levels=15)

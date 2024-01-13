@@ -23,7 +23,6 @@ else:
 
 source.plot_flux(section='perp')
 source.plot_flux(section='parallel')
-breakpoint()
 
 ### CONVERGENCE SWEEP ###
 N_particles = np.logspace(3, 6, 16).astype('int')
