@@ -1,3 +1,7 @@
+### THREADS ###
+import psutil
+n_threads = psutil.cpu_count()
+
 ### CONVERSIONS ###
 TORR2DENSITY = 1.622032e-7 # At 25 C
 IN2CM = 2.54

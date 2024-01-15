@@ -43,6 +43,10 @@ def run_sweep(name, variables, reset=False, plot=False):
         results.to_csv(f'{root}/{sweep_folder}/{name}/results.csv')
 
     else:
-        results = pd.read_csv(f'{root}/{sweep_folder}/{name}/results.csv')
+        try:
+            results = pd.read_csv(f'{root}/{sweep_folder}/{name}/results.csv')
+        except FileNotFoundError as error:
+            print(error)
+            print('Results file does not yet exist. Please set "reset" to True.')
 
     return results

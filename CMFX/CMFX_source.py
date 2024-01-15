@@ -157,7 +157,7 @@ class CMFX_Source():
         self.directory = directory
         self.model = openmc.model.Model(self.geometry, self.materials, self.settings, self.tallies)
         try:
-            self.sp_filename = self.model.run(cwd=self.directory, threads=4)
+            self.sp_filename = self.model.run(cwd=self.directory, threads=n_threads)
         except RuntimeError:
             print('Too many particles lost')
 

@@ -17,9 +17,13 @@ if reset:
     results = source.read_results()
     results.to_csv(f'{path}/results.csv')
 else:
-    result = pd.read_csv(f'{path}/results.csv')
-    with open(f'{path}/{source_pkl}', 'rb') as file:
-        source = pickle.load(file)
+    try:
+        result = pd.read_csv(f'{path}/results.csv')
+        with open(f'{path}/{source_pkl}', 'rb') as file:
+            source = pickle.load(file)
+    except FileNotFoundError as error:
+        print(error)
+        print('Results file does not yet exist. Please set "reset" to True.')
 
 source.plot_flux(section='perp')
 source.plot_flux(section='parallel')
@@ -28,7 +32,7 @@ source.plot_flux(section='parallel')
 N_particles = np.logspace(3, 6, 16).astype('int')
 name = 'convergence'
 variables = {'particles': N_particles}
-convergenceResults = run_sweep(name, variables, reset=False)
+convergenceResults = run_sweep(name, variables, reset=True)
 convergenceResults['MCSE'] = convergenceResults['std. dev.'] / convergenceResults['mean']
 
 convergenceResults.plot(x='particles', y='MCSE', logx=True)
@@ -41,7 +45,7 @@ radialDistances = np.linspace(50, 90, 17)
 axialDistances = np.linspace(0, 30, 5)
 name = 'detector_location'
 variables = {'radialDistance': radialDistances, 'axialDistance': axialDistances}
-detectorLocationResults = run_sweep(name, variables, reset=False)
+detectorLocationResults = run_sweep(name, variables, reset=True)
 
 fig, ax = plt.subplots()
 for axialDistance, grp in detectorLocationResults.groupby('axialDistance'):
