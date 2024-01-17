@@ -54,6 +54,18 @@ class CMFX_Source():
                                                           HDPE_height, HDPE_diameter / 2, axis='y')
         Pb_surface = openmc.model.RightCircularCylinder((self.radialDistance, -HDPE_height / 2 - Pb_thickness, self.axialDistance),
                                                           HDPE_height + 2*Pb_thickness, HDPE_diameter / 2 + Pb_thickness, axis='y')
+        
+        # Aluminum enclosure
+        xmin = self.radialDistance - enclosure_length / 2
+        xmax = self.radialDistance + enclosure_length / 2
+        ymin = -HDPE_height / 2 - Pb_thickness
+        ymax = -HDPE_height / 2 - Pb_thickness + enclosure_height
+        zmin = self.axialDistance - enclosure_width / 2
+        zmax = self.axialDistance + enclosure_width / 2
+        enclosure_innerSurface = openmc.model.RectangularParallelepiped(xmin, xmax, ymin, ymax, zmin, zmax)
+        enclosure_outerSurface = openmc.model.RectangularParallelepiped(xmin - enclosure_thickness, xmax + enclosure_thickness,
+                                                                        ymin - enclosure_thickness, ymax + enclosure_thickness,
+                                                                        zmin - enclosure_thickness, zmax + enclosure_thickness)
 
         # Plasma Surfaces
         plasma_outerSurface = openmc.model.RightCircularCylinder((0, 0, -plasma_length / 2), plasma_length,
@@ -78,16 +90,18 @@ class CMFX_Source():
         detector_region = (-detector_cylinder & +He3_cylinder)
         HDPE_region = (-HDPE_surface & +detector_cylinder)
         Pb_region = (-Pb_surface & +HDPE_surface)
+        enclosure_region = (-enclosure_outerSurface & +enclosure_innerSurface)
         plasma_region = (-plasma_outerSurface & +plasma_innerSurface)
         centerConductor_region = (-centerConductor_outerSurface & +centerConductor_innerSurface)
         chamber_region = (-chamber_outerSurface & +chamber_innerSurface)
-        void_region = -void_surface & +Pb_surface & ~plasma_region & ~centerConductor_region & ~chamber_region
+        void_region = -void_surface & +Pb_surface & ~enclosure_region & ~plasma_region & ~centerConductor_region & ~chamber_region
 
         self.void_cell = openmc.Cell(region=void_region)
         self.He3_cell = openmc.Cell(region=He3_region)
         self.detector_cell = openmc.Cell(region=detector_region)
         self.HDPE_cell = openmc.Cell(region=HDPE_region)
         self.Pb_cell = openmc.Cell(region=Pb_region)
+        self.enclosure_cell = openmc.Cell(region=enclosure_region)
         self.plasma_cell = openmc.Cell(region=plasma_region)
         self.centerConductor_cell = openmc.Cell(region=centerConductor_region)
         self.chamber_cell = openmc.Cell(region=chamber_region)
@@ -96,13 +110,14 @@ class CMFX_Source():
         self.detector_cell.fill = self.Al_material
         self.HDPE_cell.fill = self.HDPE_material
         self.Pb_cell.fill = self.Pb_material
+        self.enclosure_cell.fill = self.Al_material
         self.plasma_cell.fill = self.plasma_material
         self.centerConductor_cell.fill = self.Steel_material
         self.chamber_cell.fill = self.Al_material
 
         self.universe = openmc.Universe(cells=[self.void_cell, self.He3_cell, self.detector_cell,
-                                               self.HDPE_cell, self.Pb_cell, self.centerConductor_cell,
-                                               self.chamber_cell, self.plasma_cell])
+                                               self.HDPE_cell, self.Pb_cell, self.enclosure_cell,
+                                               self.centerConductor_cell, self.chamber_cell, self.plasma_cell])
         self.geometry = openmc.Geometry(root=self.universe)
 
     def set_source(self):

@@ -24,6 +24,11 @@ HDPE_diameter = 5 * IN2CM
 
 Pb_thickness = 1/16 * IN2CM
 
+enclosure_thickness = 0.05 * IN2CM
+enclosure_width = 5.25 * IN2CM
+enclosure_length = enclosure_width
+enclosure_height = 28 * IN2CM
+
 ### CHAMBER ###
 centerCondutor_radius = 1.5 * IN2CM
 centerCondutor_length = 100
