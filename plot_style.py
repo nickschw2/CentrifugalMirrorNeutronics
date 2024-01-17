@@ -9,6 +9,8 @@ mpl.rcParams.update({'lines.linewidth': 2})
 mpl.rcParams.update({'font.size': 14})
 mpl.rcParams.update({'axes.grid': True})
 mpl.rcParams.update({'axes.grid.which': 'major'})
+mpl.rcParams.update({'figure.constrained_layout.use': True})
+mpl.rcParams.update({'image.cmap': 'plasma'})
 
 # Error bars
 capsize = 5

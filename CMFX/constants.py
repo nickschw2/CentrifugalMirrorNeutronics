@@ -1,5 +1,6 @@
 ### THREADS ###
 import psutil
+# Includes hyperthreads
 n_threads = psutil.cpu_count()
 
 ### CONVERSIONS ###

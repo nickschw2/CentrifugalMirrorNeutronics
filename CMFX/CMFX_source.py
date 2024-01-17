@@ -2,6 +2,7 @@ from constants import *
 import openmc
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import neutronics_material_maker as nmm
 import pickle
 
@@ -179,7 +180,7 @@ class CMFX_Source():
 
         return self.results
     
-    def plot_flux(self, section='perp'):
+    def plot_flux(self):
         if self.create_mesh_tally:
             if not hasattr(self, 'sp'):
                 self.sp = openmc.StatePoint(self.sp_filename)
@@ -187,32 +188,55 @@ class CMFX_Source():
             flux_tally = self.sp.get_tally(name='tallies_on_mesh')
             flux_df = flux_tally.get_pandas_dataframe()
 
+            # Normalize to total number of particles
+            flux_df['mean'] = flux_df['mean'] * self.particles
+            flux_df['std. dev.'] = flux_df['std. dev.'] * self.particles
+
             # The dataframe only has the indices for the mesh geometry, not their actual values
             # We will replace the indices with values
             x = np.linspace(-plasma_outerRadius, plasma_outerRadius, self.N_points)
             y = np.linspace(-plasma_outerRadius, plasma_outerRadius, self.N_points)
             z = np.linspace(-plasma_length, plasma_length, self.N_points)
 
-            fig, ax = plt.subplots()
-            ax.set_aspect('equal', adjustable='box')
-            if section == 'perp':
-                slice_df = flux_df[flux_df[('mesh 1', 'z')] == int((self.N_points - 1) / 2)]
-                [X, Y] = np.meshgrid(x, y)
-                values = slice_df['mean'].to_numpy().reshape((self.N_points, self.N_points))
-                plt.contourf(X, Y, values, levels=15)
-                plt.xlabel('x (cm)')
-            elif section == 'parallel':
-                slice_df = flux_df[flux_df[('mesh 1', 'x')] == int((self.N_points - 1) / 2)]
-                [Z, Y] = np.meshgrid(z, y)
-                values = slice_df['mean'].to_numpy().reshape((self.N_points, self.N_points)).T
-                plt.contourf(Z, Y, values, levels=15)
-                plt.xlabel('z (cm)')
-            else:
-                print('Please type correct value for section, either perp or parallel')
+            # Plot the figures such that the y axis height is the same
+            # Note that the ratio is hardcoded in for the specific height and width of the current plasma, look for better solution in future
+            fig = plt.figure(figsize=(12, 4))
+            aspect_ratio = np.ptp(z) / np.ptp(x)
+            gs = fig.add_gridspec(1, 2,  width_ratios=(1, aspect_ratio*1.035),
+                      left=0.1, right=0.9, bottom=0.1, top=0.9,
+                      wspace=0.05, hspace=0.05)
+            ax1 = fig.add_subplot(gs[0])
+            ax2 = fig.add_subplot(gs[1], sharey=ax1)
 
-            plt.colorbar(label=f'Flux')
-            plt.ylabel('y (cm)')
-            plt.savefig(f'{self.directory}/flux_{section}.png', dpi=200)
+            # The aspect ratio is equal
+            ax1.set_aspect('equal', adjustable='box')
+            ax2.set_aspect('equal', adjustable='box')
+
+            # Perpendicular slice
+            slice_df = flux_df[flux_df[('mesh 1', 'z')] == int((self.N_points - 1) / 2)]
+            [X, Y] = np.meshgrid(x, y)
+            values = slice_df['mean'].to_numpy().reshape((self.N_points, self.N_points))
+            im = ax1.contourf(X, Y, values, levels=15)
+            ax1.set_xlabel('x (cm)')
+
+            # Parallel slice
+            slice_df = flux_df[flux_df[('mesh 1', 'x')] == int((self.N_points - 1) / 2)]
+            [Z, Y] = np.meshgrid(z, y)
+            values = slice_df['mean'].to_numpy().reshape((self.N_points, self.N_points)).T
+            im = ax2.contourf(Z, Y, values, levels=15)
+            ax2.set_xlabel('z (cm)')
+            # Remove y tick labels
+            ax2.tick_params(axis='y', which='both', labelleft=False)
+
+            # Make colorbar same height as plots
+            divider = make_axes_locatable(ax2)
+            cax = divider.append_axes("right", size="2%", pad=0.1)
+            fig.colorbar(im, cax=cax, label='Flux (Norm.)')
+            ax1.set_ylabel('y (cm)')
+
+            fig.set_constrained_layout(False)
+
+            plt.savefig(f'{self.directory}/flux.png', dpi=200)
             plt.show()
         else:
             print('Did not create mesh tally, so not plotting flux')

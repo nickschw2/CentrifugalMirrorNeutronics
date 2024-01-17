@@ -8,7 +8,7 @@ from plot_style import *
 
 ### STANDARD SIMULATION ###
 path = f'{root}/{examples_folder}/standard'
-reset = True
+reset = False
 if reset:
     if os.path.isdir(path):
         shutil.rmtree(path)
@@ -25,14 +25,13 @@ else:
         print(error)
         print('Results file does not yet exist. Please set "reset" to True.')
 
-source.plot_flux(section='perp')
-source.plot_flux(section='parallel')
+source.plot_flux()
 
 ### CONVERGENCE SWEEP ###
 N_particles = np.logspace(3, 6, 16).astype('int')
 name = 'convergence'
 variables = {'particles': N_particles}
-convergenceResults = run_sweep(name, variables, reset=True)
+convergenceResults = run_sweep(name, variables, reset=False)
 convergenceResults['MCSE'] = convergenceResults['std. dev.'] / convergenceResults['mean']
 
 convergenceResults.plot(x='particles', y='MCSE', logx=True)
@@ -45,7 +44,7 @@ radialDistances = np.linspace(50, 90, 17)
 axialDistances = np.linspace(0, 30, 5)
 name = 'detector_location'
 variables = {'radialDistance': radialDistances, 'axialDistance': axialDistances}
-detectorLocationResults = run_sweep(name, variables, reset=True)
+detectorLocationResults = run_sweep(name, variables, reset=False)
 
 fig, ax = plt.subplots()
 for axialDistance, grp in detectorLocationResults.groupby('axialDistance'):
@@ -55,4 +54,5 @@ for axialDistance, grp in detectorLocationResults.groupby('axialDistance'):
 ax.set_xlabel('Radial Distance (cm)')
 ax.set_ylabel('Counts')
 ax.legend()
+ax.set_ylim(bottom=0)
 plt.show()
