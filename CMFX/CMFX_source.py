@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import neutronics_material_maker as nmm
 import pickle
+from scipy import integrate, interpolate
 
 TORR2DENSITY = 1.622032e-7 # At 25 C
 IN2CM = 2.54
@@ -120,23 +121,84 @@ class CMFX_Source():
                                                self.centerConductor_cell, self.chamber_cell, self.plasma_cell])
         self.geometry = openmc.Geometry(root=self.universe)
 
+    def get_neutron_profile(self):
+        # Arbitrarily assume a parabolic plasma temperature and density
+        # Create T(r, z) and n(r, z)
+        N_points = 1000
+        r = np.linspace(plasma_innerRadius, plasma_outerRadius, N_points)
+        z = np.linspace(-plasma_length / 2, plasma_length / 2, N_points)
+        R, Z = np.meshgrid(r, z)
+        r_profile = 1 - (((plasma_outerRadius + plasma_innerRadius)/2 - R) / ((plasma_outerRadius - plasma_innerRadius)/2))**2
+        z_profile = 1 - (Z / (plasma_length / 2))**2
+        Ti_profile = T_peak * r_profile * z_profile
+        ni_profile = n_peak * r_profile * z_profile
+
+        # Create interpolation functions so we can pass them to the integral later
+        f_Ti = interpolate.RectBivariateSpline(r, z, Ti_profile)
+        f_ni = interpolate.RectBivariateSpline(r, z, ni_profile)
+
+        # Parameters are taken as the D(d, n)3He reaction fitting parameters from table VII of: https://iopscience.iop.org/article/10.1088/0029-5515/32/4/I07/pdf
+        B_G = 31.3970 # keV^(1/2)
+        mrcc = 937814 # Actually m_r*c^2, keV
+        C1 = 5.43360E-12 # 1/keV
+        C2 = 5.85778E-3 # 1/keV
+        C3 = 7.68222E-3 # 1/keV
+        C4 = 0 # 1/keV
+        C5 = -2.96400E-6 # 1/keV
+        C6 = 0 # 1/keV
+        C7 = 0 # 1/keV
+
+        # Eqns 12-14 of above paper
+        # Returns <sigma * v> in cm^3 / s
+        # We also multiply by density^2 to get units of cm^-3 s^-1
+        # Need this to be a function of r and z so that we can integrate over it and get the total neutrons
+        def get_reaction_rate(r, z):
+            Ti = f_Ti(r, z)
+            ni = f_ni(r, z)
+
+            theta = Ti / (1 - Ti * (C2 + Ti * (C4 + Ti * C6)) / (1 + Ti * (C3 + Ti * (C5 + Ti * C7))))
+            xi = (B_G**2 / (4*theta))**(1/3)
+            sigma_v = C1 * theta * np.sqrt(xi / (mrcc * Ti**3)) * np.exp(-3*xi)
+
+            # Remove nan's that exist because we divide by 0
+            sigma_v = np.nan_to_num(sigma_v)
+
+            return ni**2 * sigma_v
+
+        # Integrate to find the total number of neutrons
+        # Units of s^-1
+        integrand = lambda z, r: get_reaction_rate(r, z) * r
+        integral, error = integrate.dblquad(integrand, plasma_innerRadius, plasma_outerRadius,
+                                                            -plasma_length / 2, plasma_length / 2)
+        self.total_neutrons = integral * 2 * np.pi
+        
+        neutron_r_profile = get_reaction_rate(r, 0)[:, 0]
+        neutron_z_profile = get_reaction_rate((plasma_outerRadius + plasma_innerRadius)/2, z)[0, :]
+
+        return r, z, neutron_r_profile, neutron_z_profile
+
     def set_source(self):
         # SOURCE
         # Create a CMFX-like neutron source
         self.source = openmc.Source(domains=[self.plasma_cell])
 
-        radius = openmc.stats.Normal(plasma_innerRadius + plasma_outerRadius / 2, (plasma_outerRadius - plasma_innerRadius) / 4)
-        angle = openmc.stats.Uniform(a=0.0, b=2*np.pi)
-        z_values = openmc.stats.Normal(0, plasma_length / 4)
+        r, z, neutron_r_profile, neutron_z_profile = self.get_neutron_profile()
 
-        self.source.space = openmc.stats.CylindricalIndependent(r=radius, phi=angle, z=z_values, origin=(0.0, 0.0, 0.0))
+        r_dist = openmc.stats.Tabular(r, neutron_r_profile)
+        angle_dist = openmc.stats.Uniform(a=0.0, b=2*np.pi)
+        z_dist = openmc.stats.Tabular(z, neutron_z_profile)
+
+        # Normalize r and z profiles so the integral == 1
+        r_dist.normalize()
+        z_dist.normalize()
+
+        self.source.space = openmc.stats.CylindricalIndependent(r=r_dist, phi=angle_dist, z=z_dist, origin=(0.0, 0.0, 0.0))
         self.source.angle = openmc.stats.Isotropic()
         self.source.energy = openmc.stats.muir(e0=2.45e6, m_rat=4.0, kt=10000)
-        
 
     def run_settings(self):
         self.settings = openmc.Settings()
-        self.settings.batches = 100
+        self.settings.batches = 10
         self.settings.particles = self.particles
         self.settings.run_mode = "fixed source"
         self.settings.source = self.source
@@ -144,8 +206,8 @@ class CMFX_Source():
     def create_mesh(self, N_points=101):
         mesh = openmc.RegularMesh()
         mesh.dimension = [N_points, N_points, N_points]
-        mesh.lower_left = [-plasma_outerRadius, -plasma_outerRadius, -plasma_length]
-        mesh.upper_right = [plasma_outerRadius, plasma_outerRadius, plasma_length]
+        mesh.lower_left = [-plasma_outerRadius, -plasma_outerRadius, -plasma_length / 2]
+        mesh.upper_right = [plasma_outerRadius, plasma_outerRadius, plasma_length / 2]
         self.N_points = N_points
 
         return mesh
@@ -190,8 +252,8 @@ class CMFX_Source():
         self.results = self.tally.get_pandas_dataframe()
 
         # Normalize to total counts
-        self.results['mean'] = self.results['mean'] * self.particles
-        self.results['std. dev.'] = self.results['std. dev.'] * self.particles
+        self.results['mean'] = self.results['mean'] * self.total_neutrons * duration
+        self.results['std. dev.'] = self.results['std. dev.'] * self.total_neutrons * duration
 
         return self.results
     
@@ -204,14 +266,14 @@ class CMFX_Source():
             flux_df = flux_tally.get_pandas_dataframe()
 
             # Normalize to total number of particles
-            flux_df['mean'] = flux_df['mean'] * self.particles
-            flux_df['std. dev.'] = flux_df['std. dev.'] * self.particles
+            flux_df['mean'] = flux_df['mean'] * self.total_neutrons * duration
+            flux_df['std. dev.'] = flux_df['std. dev.'] * self.total_neutrons * duration
 
             # The dataframe only has the indices for the mesh geometry, not their actual values
             # We will replace the indices with values
             x = np.linspace(-plasma_outerRadius, plasma_outerRadius, self.N_points)
             y = np.linspace(-plasma_outerRadius, plasma_outerRadius, self.N_points)
-            z = np.linspace(-plasma_length, plasma_length, self.N_points)
+            z = np.linspace(-plasma_length / 2, plasma_length / 2, self.N_points)
 
             # Plot the figures such that the y axis height is the same
             # Note that the ratio is hardcoded in for the specific height and width of the current plasma, look for better solution in future
@@ -246,7 +308,7 @@ class CMFX_Source():
             # Make colorbar same height as plots
             divider = make_axes_locatable(ax2)
             cax = divider.append_axes("right", size="2%", pad=0.1)
-            fig.colorbar(im, cax=cax, label='Flux (Norm.)')
+            fig.colorbar(im, cax=cax, label='Flux (#-cm)')
             ax1.set_ylabel('y (cm)')
 
             fig.set_constrained_layout(False)

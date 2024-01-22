@@ -24,7 +24,7 @@ HDPE_diameter = 5 * IN2CM
 
 Pb_thickness = 1/16 * IN2CM
 
-enclosure_thickness = 0.05 * IN2CM
+enclosure_thickness = 0.07 * IN2CM
 enclosure_width = 5.25 * IN2CM
 enclosure_length = enclosure_width
 enclosure_height = 28 * IN2CM
@@ -42,6 +42,9 @@ chamber_thickness = 0.5 * IN2CM
 plasma_outerRadius = 25
 plasma_innerRadius = 5
 plasma_length = 60
+T_peak = 10 # keV
+n_peak = 1e13 # cm^-3
+duration = 0.2 # s
 
 ### SIMULATION ###
 void_radius = 150
