@@ -27,6 +27,7 @@ def run_sweep(name, variables, reset=False, plot=False):
         kwargs_list = [{variable: value for variable, value in zip(variables.keys(), values)} for values in values_list]
         
         for i, kwargs in enumerate(kwargs_list):
+            print(f'Starting run {i + 1}/{len(kwargs_list)}: {kwargs}')
             # Make a new folder for each run
             subdir = f'{file_prefix}_{i+1:03}'
             path = f'{root}/{sweep_folder}/{name}/{subdir}'

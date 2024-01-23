@@ -11,11 +11,16 @@ TORR2DENSITY = 1.622032e-7 # At 25 C
 IN2CM = 2.54
 
 class CMFX_Source():
-    def __init__(self, particles=250000, radialDistance=50, axialDistance=0, create_mesh_tally=False):
+    def __init__(self, Ti_peak=1, ni_peak=1e13, particles=250000, radialDistance=50, axialDistance=0, create_mesh_tally=False):
+        self.Ti_peak = Ti_peak
+        self.ni_peak = ni_peak
         self.particles = particles
         self.radialDistance = radialDistance
         self.axialDistance = axialDistance
         self.create_mesh_tally = create_mesh_tally
+
+        # Determine whether the plasma is too cold to generate any neutrons, which would lead to runtime error in simulation
+        self.neutrons_generated = self.Ti_peak >= Ti_min
 
         self.set_materials()
         self.set_geometry()
@@ -133,8 +138,8 @@ class CMFX_Source():
         R, Z = np.meshgrid(r, z)
         r_profile = 1 - (((plasma_outerRadius + plasma_innerRadius)/2 - R) / ((plasma_outerRadius - plasma_innerRadius)/2))**2
         z_profile = 1 - (Z / (plasma_length / 2))**2
-        Ti_profile = T_peak * r_profile * z_profile
-        ni_profile = n_peak * r_profile * z_profile
+        Ti_profile = self.Ti_peak * r_profile * z_profile
+        ni_profile = self.ni_peak * r_profile * z_profile
 
         # Create interpolation functions so we can pass them to the integral later
         f_Ti = interpolate.RectBivariateSpline(r, z, Ti_profile)
@@ -156,23 +161,27 @@ class CMFX_Source():
         # We also multiply by density^2 to get units of cm^-3 s^-1
         # Need this to be a function of r and z so that we can integrate over it and get the total neutrons
         def get_reaction_rate(r, z):
-            Ti = f_Ti(r, z)
-            ni = f_ni(r, z)
+            Ti_values = f_Ti(r, z)
+            ni_values = f_ni(r, z)
+            sigma_v_values = np.zeros(Ti_values.shape)
 
-            theta = Ti / (1 - Ti * (C2 + Ti * (C4 + Ti * C6)) / (1 + Ti * (C3 + Ti * (C5 + Ti * C7))))
-            xi = (B_G**2 / (4*theta))**(1/3)
-            sigma_v = C1 * theta * np.sqrt(xi / (mrcc * Ti**3)) * np.exp(-3*xi)
+            for i, j in np.ndindex(Ti_values.shape):
+                Ti = Ti_values[i, j]
+                if Ti >= Ti_min:
+                    theta = Ti / (1 - Ti * (C2 + Ti * (C4 + Ti * C6)) / (1 + Ti * (C3 + Ti * (C5 + Ti * C7))))
+                    xi = (B_G**2 / (4*theta))**(1/3)
+                    sigma_v = C1 * theta * np.sqrt(xi / (mrcc * Ti**3)) * np.exp(-3*xi)
+                else:
+                    sigma_v = 0
+                sigma_v_values[i, j] = sigma_v
 
-            # Remove nan's that exist because we divide by 0
-            sigma_v = np.nan_to_num(sigma_v)
-
-            return ni**2 * sigma_v
+            return ni_values**2 * sigma_v_values
 
         # Integrate to find the total number of neutrons
         # Units of s^-1
+        # Need to check if integral is correct
         integrand = lambda z, r: get_reaction_rate(r, z) * r
-        integral, error = integrate.dblquad(integrand, plasma_innerRadius, plasma_outerRadius,
-                                                            -plasma_length / 2, plasma_length / 2)
+        integral = integrate.simps(integrate.simps(integrand(z, r), z), r)
         self.total_neutrons = integral * 2 * np.pi
         
         neutron_r_profile = get_reaction_rate(r, 0)[:, 0]
@@ -198,11 +207,12 @@ class CMFX_Source():
         self.source.space = openmc.stats.CylindricalIndependent(r=r_dist, phi=angle_dist, z=z_dist, origin=(0.0, 0.0, 0.0))
         self.source.angle = openmc.stats.Isotropic()
         self.source.energy = openmc.stats.muir(e0=2.45e6, m_rat=4.0, kt=10000)
-        self.source.strength = self.total_neutrons * duration
+        # Sets the source strength to the total neutron production rate in n/s
+        self.source.strength = self.total_neutrons
 
     def run_settings(self):
         self.settings = openmc.Settings()
-        self.settings.batches = 10
+        self.settings.batches = 100
         self.settings.particles = self.particles
         self.settings.run_mode = "fixed source"
         self.settings.source = self.source
@@ -237,16 +247,19 @@ class CMFX_Source():
             self.tallies.append(mesh_tally)
 
     def run(self, directory):
-        self.directory = directory
-        self.model = openmc.model.Model(self.geometry, self.materials, self.settings, self.tallies)
-        try:
-            self.sp_filename = self.model.run(cwd=self.directory, threads=n_threads)
-        except RuntimeError:
-            print('Too many particles lost')
+        if self.neutrons_generated:
+            self.directory = directory
+            self.model = openmc.model.Model(self.geometry, self.materials, self.settings, self.tallies)
+            try:
+                self.sp_filename = self.model.run(cwd=self.directory, threads=n_threads)
+            except RuntimeError:
+                print('Too many particles lost')
 
-        # Save the source object to pickle
-        with open(f'{self.directory}/{source_pkl}', 'wb') as file:
-            pickle.dump(self, file)
+            # Save the source object to pickle
+            with open(f'{self.directory}/{source_pkl}', 'wb') as file:
+                pickle.dump(self, file)
+        else:
+            print('The plasma was too cold to generate any neutrons')
 
     def read_results(self):
         # open the results file
@@ -274,8 +287,8 @@ class CMFX_Source():
 
             # Normalize to particle / cm^2-s because flux comes in particle-cm
             mesh_cell_volume = dx * dy * dz
-            flux_df['mean'] = flux_df['mean'] / (mesh_cell_volume * duration)
-            flux_df['std. dev.'] = flux_df['std. dev.'] / (mesh_cell_volume * duration)
+            flux_df['mean'] = flux_df['mean'] / (mesh_cell_volume)
+            flux_df['std. dev.'] = flux_df['std. dev.'] / (mesh_cell_volume)
 
             # Plot the figures such that the y axis height is the same
             # Note that the ratio is hardcoded in for the specific height and width of the current plasma, look for better solution in future

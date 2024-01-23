@@ -42,8 +42,7 @@ chamber_thickness = 0.5 * IN2CM
 plasma_outerRadius = 25
 plasma_innerRadius = 5
 plasma_length = 60
-T_peak = 10 # keV
-n_peak = 1e13 # cm^-3
+Ti_min = 0.2 # keV, # Lower limit found in Table VII of https://iopscience.iop.org/article/10.1088/0029-5515/32/4/I07/pdf
 duration = 0.2 # s
 
 ### SIMULATION ###

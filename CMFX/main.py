@@ -52,7 +52,26 @@ for axialDistance, grp in detectorLocationResults.groupby('axialDistance'):
     ax.fill_between(grp['radialDistance'], grp['mean'] - grp['std. dev.'], grp['mean'] + grp['std. dev.'], alpha=0.2)
 
 ax.set_xlabel('Radial Distance (cm)')
-ax.set_ylabel('Counts')
+ax.set_ylabel('Counts/s')
 ax.legend()
 ax.set_ylim(bottom=0)
+plt.show()
+
+### TEMPERATURE AND DENSITY SWEEP ###
+Ti_values = np.logspace(np.log10(0.3), 1, 15) # keV
+ni_values = np.logspace(12, 14, 5) # cm^-3
+name = 'plasma_properties'
+variables = {'Ti_peak': Ti_values, 'ni_peak': ni_values}
+plasmaPropertiesResults = run_sweep(name, variables, reset=False)
+
+fig, ax = plt.subplots()
+for ni_peak, grp in plasmaPropertiesResults.groupby('ni_peak'):
+    grp.plot(ax=ax, x='Ti_peak', y='mean', label=f'$n_i$={ni_peak:.1e} (cm$^{{-3}}$)')
+    ax.fill_between(grp['Ti_peak'], grp['mean'] - grp['std. dev.'], grp['mean'] + grp['std. dev.'], alpha=0.2)
+
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_xlabel('$T_{i, \mathrm{peak}}$ (keV)')
+ax.set_ylabel('Counts/s')
+ax.legend()
 plt.show()
