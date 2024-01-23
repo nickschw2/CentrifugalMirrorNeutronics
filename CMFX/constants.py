@@ -1,11 +1,15 @@
 ### THREADS ###
 import psutil
+from scipy import constants
 # Includes hyperthreads
 n_threads = psutil.cpu_count()
 
 ### CONVERSIONS ###
 TORR2DENSITY = 1.622032e-7 # At 25 C
 IN2CM = 2.54
+
+### Constants ###
+ProtonMass = constants.m_p
 
 # ALL LENGTH UNITS IN CM
 
@@ -32,11 +36,11 @@ enclosure_height = 28 * IN2CM
 ### CHAMBER ###
 centerCondutor_radius = 1.5 * IN2CM
 centerCondutor_length = 100
-centerCondutor_thickness = 3/16 * IN2CM
+centerCondutor_thickness = 0.065 * IN2CM
 
-chamber_radius = 40
-chamber_length = 100
-chamber_thickness = 0.5 * IN2CM
+chamber_radius = 36.1
+chamber_length = centerCondutor_length
+chamber_thickness = 0.95
 
 ### PLASMA ###
 plasma_outerRadius = 25

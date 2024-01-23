@@ -7,16 +7,15 @@ import neutronics_material_maker as nmm
 import pickle
 from scipy import integrate, interpolate
 
-TORR2DENSITY = 1.622032e-7 # At 25 C
-IN2CM = 2.54
-
 class CMFX_Source():
-    def __init__(self, Ti_peak=1, ni_peak=1e13, particles=250000, radialDistance=50, axialDistance=0, create_mesh_tally=False):
+    def __init__(self, Ti_peak=1, ni_peak=1e13, particles=250000, radialDistance=50, axialDistance=0,
+                 fuel='DD', create_mesh_tally=False):
         self.Ti_peak = Ti_peak
         self.ni_peak = ni_peak
         self.particles = particles
         self.radialDistance = radialDistance
         self.axialDistance = axialDistance
+        self.fuel = fuel
         self.create_mesh_tally = create_mesh_tally
 
         # Determine whether the plasma is too cold to generate any neutrons, which would lead to runtime error in simulation
@@ -42,7 +41,12 @@ class CMFX_Source():
         self.HDPE_material.add_s_alpha_beta('c_H_in_CH2') # Using thermal scattering data, need to compare to https://www.sciencedirect.com/science/article/pii/0168900287903706
         self.Pb_material = nmm.Material.from_library(name='Lead').openmc_material
 
-        self.plasma_material = nmm.Material.from_library(name='DD_plasma').openmc_material
+        if self.fuel == 'DD':
+            self.plasma_material = nmm.Material.from_library(name='DD_plasma').openmc_material
+            self.plasma_material.set_density("g/cm3", self.ni_peak * 2 * ProtonMass)
+        elif self.fuel == 'DT':
+            self.plasma_material = nmm.Material.from_library(name='DT_plasma').openmc_material
+            self.plasma_material.set_density("g/cm3", self.ni_peak * 2.5 * ProtonMass)
 
         self.materials = openmc.Materials([self.He3_material, self.Al_material, self.Steel_material,
                                            self.HDPE_material, self.Pb_material, self.plasma_material])
@@ -144,17 +148,29 @@ class CMFX_Source():
         # Create interpolation functions so we can pass them to the integral later
         f_Ti = interpolate.RectBivariateSpline(r, z, Ti_profile)
         f_ni = interpolate.RectBivariateSpline(r, z, ni_profile)
-
-        # Parameters are taken as the D(d, n)3He reaction fitting parameters from table VII of: https://iopscience.iop.org/article/10.1088/0029-5515/32/4/I07/pdf
-        B_G = 31.3970 # keV^(1/2)
-        mrcc = 937814 # Actually m_r*c^2, keV
-        C1 = 5.43360E-12 # 1/keV
-        C2 = 5.85778E-3 # 1/keV
-        C3 = 7.68222E-3 # 1/keV
-        C4 = 0 # 1/keV
-        C5 = -2.96400E-6 # 1/keV
-        C6 = 0 # 1/keV
-        C7 = 0 # 1/keV
+        
+        if self.fuel == 'DD':
+            # Parameters are taken as the D(d, n)3He reaction fitting parameters from table VII of: https://iopscience.iop.org/article/10.1088/0029-5515/32/4/I07/pdf
+            B_G = 31.3970 # keV^(1/2)
+            mrcc = 937814 # Actually m_r*c^2, keV
+            C1 = 5.43360E-12 # 1/keV
+            C2 = 5.85778E-3 # 1/keV
+            C3 = 7.68222E-3 # 1/keV
+            C4 = 0 # 1/keV
+            C5 = -2.96400E-6 # 1/keV
+            C6 = 0 # 1/keV
+            C7 = 0 # 1/keV
+        elif self.fuel == 'DT':
+            # Parameters are taken as the T(d, n)4He reaction fitting parameters from table VII of: https://iopscience.iop.org/article/10.1088/0029-5515/32/4/I07/pdf
+            B_G = 34.3827 # keV^(1/2)
+            mrcc = 1124656 # Actually m_r*c^2, keV
+            C1 = 1.17302e-9 # 1/keV
+            C2 = 1.51361e-2 # 1/keV
+            C3 = 7.51886e-2 # 1/keV
+            C4 = 4.60643e-3 # 1/keV
+            C5 = 1.35000e-2 # 1/keV
+            C6 = -1.06750e-4 # 1/keV
+            C7 = 1.36600e-5 # 1/keV
 
         # Eqns 12-14 of above paper
         # Returns <sigma * v> in cm^3 / s
@@ -206,13 +222,16 @@ class CMFX_Source():
 
         self.source.space = openmc.stats.CylindricalIndependent(r=r_dist, phi=angle_dist, z=z_dist, origin=(0.0, 0.0, 0.0))
         self.source.angle = openmc.stats.Isotropic()
-        self.source.energy = openmc.stats.muir(e0=2.45e6, m_rat=4.0, kt=10000)
+        if self.fuel == 'DD':
+            self.source.energy = openmc.stats.muir(e0=2.45e6, m_rat=4.0, kt=self.Ti_peak)
+        elif self.fuel == 'DT':
+            self.source.energy = openmc.stats.muir(e0=14.1e6, m_rat=5.0, kt=self.Ti_peak)
         # Sets the source strength to the total neutron production rate in n/s
         self.source.strength = self.total_neutrons
 
     def run_settings(self):
         self.settings = openmc.Settings()
-        self.settings.batches = 100
+        self.settings.batches = 10
         self.settings.particles = self.particles
         self.settings.run_mode = "fixed source"
         self.settings.source = self.source
@@ -286,9 +305,10 @@ class CMFX_Source():
             z, dz = np.linspace(-plasma_length / 2, plasma_length / 2, self.N_points, retstep=True)
 
             # Normalize to particle / cm^2-s because flux comes in particle-cm
+            # By setting the source strength, all results are totals, not per source particle
             mesh_cell_volume = dx * dy * dz
-            flux_df['mean'] = flux_df['mean'] / (mesh_cell_volume)
-            flux_df['std. dev.'] = flux_df['std. dev.'] / (mesh_cell_volume)
+            flux_df['mean'] = flux_df['mean'] / mesh_cell_volume
+            flux_df['std. dev.'] = flux_df['std. dev.'] / mesh_cell_volume
 
             # Plot the figures such that the y axis height is the same
             # Note that the ratio is hardcoded in for the specific height and width of the current plasma, look for better solution in future
