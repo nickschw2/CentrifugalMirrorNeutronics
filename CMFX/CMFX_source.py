@@ -115,6 +115,9 @@ class CMFX_Source():
         self.plasma_cell.fill = self.plasma_material
         self.centerConductor_cell.fill = self.Steel_material
         self.chamber_cell.fill = self.Al_material
+        
+        # Add volume calculation to plasma so we can normalize flux later
+        self.plasma_cell.volume = np.pi * plasma_length * (plasma_outerRadius**2 - plasma_innerRadius**2)
 
         self.universe = openmc.Universe(cells=[self.void_cell, self.He3_cell, self.detector_cell,
                                                self.HDPE_cell, self.Pb_cell, self.enclosure_cell,
@@ -195,6 +198,7 @@ class CMFX_Source():
         self.source.space = openmc.stats.CylindricalIndependent(r=r_dist, phi=angle_dist, z=z_dist, origin=(0.0, 0.0, 0.0))
         self.source.angle = openmc.stats.Isotropic()
         self.source.energy = openmc.stats.muir(e0=2.45e6, m_rat=4.0, kt=10000)
+        self.source.strength = self.total_neutrons * duration
 
     def run_settings(self):
         self.settings = openmc.Settings()
@@ -202,6 +206,7 @@ class CMFX_Source():
         self.settings.particles = self.particles
         self.settings.run_mode = "fixed source"
         self.settings.source = self.source
+
 
     def create_mesh(self, N_points=101):
         mesh = openmc.RegularMesh()
@@ -251,10 +256,6 @@ class CMFX_Source():
         self.tally = self.sp.get_tally(name='tally_in_cell')
         self.results = self.tally.get_pandas_dataframe()
 
-        # Normalize to total counts
-        self.results['mean'] = self.results['mean'] * self.total_neutrons * duration
-        self.results['std. dev.'] = self.results['std. dev.'] * self.total_neutrons * duration
-
         return self.results
     
     def plot_flux(self):
@@ -265,15 +266,16 @@ class CMFX_Source():
             flux_tally = self.sp.get_tally(name='tallies_on_mesh')
             flux_df = flux_tally.get_pandas_dataframe()
 
-            # Normalize to total number of particles
-            flux_df['mean'] = flux_df['mean'] * self.total_neutrons * duration
-            flux_df['std. dev.'] = flux_df['std. dev.'] * self.total_neutrons * duration
-
             # The dataframe only has the indices for the mesh geometry, not their actual values
             # We will replace the indices with values
-            x = np.linspace(-plasma_outerRadius, plasma_outerRadius, self.N_points)
-            y = np.linspace(-plasma_outerRadius, plasma_outerRadius, self.N_points)
-            z = np.linspace(-plasma_length / 2, plasma_length / 2, self.N_points)
+            x, dx = np.linspace(-plasma_outerRadius, plasma_outerRadius, self.N_points, retstep=True)
+            y, dy = np.linspace(-plasma_outerRadius, plasma_outerRadius, self.N_points, retstep=True)
+            z, dz = np.linspace(-plasma_length / 2, plasma_length / 2, self.N_points, retstep=True)
+
+            # Normalize to particle / cm^2-s because flux comes in particle-cm
+            mesh_cell_volume = dx * dy * dz
+            flux_df['mean'] = flux_df['mean'] / (mesh_cell_volume * duration)
+            flux_df['std. dev.'] = flux_df['std. dev.'] / (mesh_cell_volume * duration)
 
             # Plot the figures such that the y axis height is the same
             # Note that the ratio is hardcoded in for the specific height and width of the current plasma, look for better solution in future
@@ -308,7 +310,7 @@ class CMFX_Source():
             # Make colorbar same height as plots
             divider = make_axes_locatable(ax2)
             cax = divider.append_axes("right", size="2%", pad=0.1)
-            fig.colorbar(im, cax=cax, label='Flux (#-cm)')
+            fig.colorbar(im, cax=cax, label=r'Flux $\left( \frac{\#}{ \mathrm{cm}^2 \mathrm{s} } \right)$')
             ax1.set_ylabel('y (cm)')
 
             fig.set_constrained_layout(False)

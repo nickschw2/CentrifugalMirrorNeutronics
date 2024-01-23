@@ -8,7 +8,7 @@ from plot_style import *
 
 ### STANDARD SIMULATION ###
 path = f'{root}/{examples_folder}/standard'
-reset = True
+reset = False
 if reset:
     if os.path.isdir(path):
         shutil.rmtree(path)
