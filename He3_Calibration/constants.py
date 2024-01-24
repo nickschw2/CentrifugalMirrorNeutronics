@@ -30,7 +30,7 @@ enclosure_width = 5.25 * IN2CM
 enclosure_length = enclosure_width
 enclosure_height = 28 * IN2CM
 
-DET_NUM = 1
+DET_NUM = 2
 duration = 100 # s
 
 ### SIMULATION ###

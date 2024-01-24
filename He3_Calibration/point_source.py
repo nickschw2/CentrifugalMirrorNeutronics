@@ -57,12 +57,15 @@ class Point_Source():
                                                                         zmin - enclosure_thickness, zmax + enclosure_thickness)
 
         # CELLS
-        void_region = -void_surface & +HDPE_surface
         He3_region = -He3_cylinder
         detector_region = (-detector_cylinder & +He3_cylinder)
         HDPE_region = (-HDPE_surface & +detector_cylinder)
         Pb_region = (-Pb_surface & +HDPE_surface)
         enclosure_region = (-enclosure_outerSurface & +enclosure_innerSurface)
+        if not self.shielding:
+            void_region = -void_surface & +HDPE_surface
+        else:
+            void_region = -void_surface & +Pb_surface & ~enclosure_region
 
         self.void_cell = openmc.Cell(region=void_region)
         self.He3_cell = openmc.Cell(region=He3_region)
