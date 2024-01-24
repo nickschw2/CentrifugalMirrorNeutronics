@@ -11,9 +11,9 @@ reset = False
 def get_calibration_data(det_num):
     CALIBRATION_FILE = f'NEUTRON_CALIBRATION_DATA_CYLINDRICAL_HE3DET0{det_num}.XLSX'
     calibration_results = pd.read_excel(CALIBRATION_FILE)
-    distance = calibration_results['Distance']
-    mean = calibration_results['Mean'] / duration
-    std = calibration_results['Std'] / duration
+    distance = calibration_results['Distance'].dropna()
+    mean = calibration_results['Mean'].dropna() / duration
+    std = calibration_results['Std'].dropna() / duration
     added_distance = calibration_results['Added Distance (cm)'][0]
     activity = calibration_results['Activity (n/s)'][0]
     shielding = True if calibration_results['Shielding'][0] == 1 else False
@@ -27,11 +27,16 @@ def get_calibration_data(det_num):
 distance, mean, std, activity, shielding = get_calibration_data(DET_NUM)
 
 ### MODEL VARIABLE ###
-# distances = np.linspace(5, 40, 36)
 distances = np.linspace(min(distance), max(distance), 20)
 name = f'HE3DET0{DET_NUM}'
 variables = {'distance': distances, 'activity': [activity], 'shielding': [shielding]}
 results = run_sweep(name, variables=variables, reset=reset)
+
+# Find relative error between the two
+error = np.abs(mean - np.interp(distance, results['distance'], results['mean'])) / mean * 100
+max_error = max(error)
+avg_error = np.mean(error)
+print(f'Average Error (%): {avg_error}')
 
 fig, ax = plt.subplots()
 ax.plot(distance, mean, label=f'Exp. Det. {DET_NUM}')
@@ -42,31 +47,22 @@ ax.fill_between(results['distance'], results['mean'] - results['std. dev.'], res
 ax.set_xlabel('Distance (cm)')
 ax.set_ylabel('Counts/sec')
 ax.legend()
+fig.savefig(f'HE3DET0{DET_NUM}_comparison.png', dpi=300)
 plt.show()
 
 ### PLOT BOTH CALIBRATIONS ###
-if not reset:
-    distance_01, mean_01, std_01, activity_01, shielding_01 = get_calibration_data(1)
-    distance_02, mean_02, std_02, activity_02, shielding_02 = get_calibration_data(2)
-    results_01 = run_sweep('HE3DET01')
-    results_02 = run_sweep('HE3DET02')
+distance_01, mean_01, std_01, activity_01, shielding_01 = get_calibration_data(1)
+distance_02, mean_02, std_02, activity_02, shielding_02 = get_calibration_data(2)
 
-    fig, ax = plt.subplots()
-    ax.plot(distance_01, mean_01, label='Exp. Det. 1')
-    ax.fill_between(distance_01, mean_01 - std_01, mean_01 + std_01, alpha=0.2)
-    ax.plot(results_01['distance'], results_01['mean'], label='OpenMC Det. 1')
-    ax.fill_between(results_01['distance'], results_01['mean'] - results_01['std. dev.'], results_01['mean'] + results_01['std. dev.'], alpha=0.2)
+fig, ax = plt.subplots()
+ax.plot(distance_01, mean_01 / activity_01, label='Exp. Det. 1')
+ax.fill_between(distance_01, (mean_01 - std_01) / activity_01, (mean_01 + std_01) / activity_01, alpha=0.2)
 
-    ax.plot(distance_02, mean_02, label='Exp. Det. 2')
-    ax.fill_between(distance_02, mean_02 - std_02, mean_02 + std_02, alpha=0.2)
-    ax.plot(results_02['distance'], results_02['mean'], label='OpenMC Det. 2')
-    ax.fill_between(results_02['distance'], results_02['mean'] - results_02['std. dev.'], results_02['mean'] + results_02['std. dev.'], alpha=0.2)
+ax.plot(distance_02, mean_02 / activity_02, label='Exp. Det. 2')
+ax.fill_between(distance_02, (mean_02 - std_02) / activity_02, (mean_02 + std_02) / activity_02, alpha=0.2)
 
-    ax.set_xlabel('Distance (cm)')
-    ax.set_ylabel('Counts/sec')
-    ax.legend()
-    plt.show()
-
-
-
-
+ax.set_xlabel('Distance (cm)')
+ax.set_ylabel('Counts/sec/activity (-)')
+ax.legend()
+fig.savefig(f'calibration_comparison.png', dpi=300)
+plt.show()
