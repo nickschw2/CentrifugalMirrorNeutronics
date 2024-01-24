@@ -52,7 +52,6 @@ duration = 0.2 # s
 ### SIMULATION ###
 void_radius = 150
 void_length = 120
-particles = 50000
 
 root = '.'
 sweep_folder = 'param_sweeps'

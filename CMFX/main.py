@@ -31,7 +31,7 @@ source.plot_flux()
 N_particles = np.logspace(3, 6, 16).astype('int')
 name = 'convergence'
 variables = {'particles': N_particles}
-convergenceResults = run_sweep(name, variables, reset=False)
+convergenceResults = run_sweep(name, variables=variables, reset=False)
 convergenceResults['MCSE'] = convergenceResults['std. dev.'] / convergenceResults['mean']
 
 convergenceResults.plot(x='particles', y='MCSE', logx=True)
@@ -44,7 +44,7 @@ radialDistances = np.linspace(50, 90, 17)
 axialDistances = np.linspace(0, 30, 5)
 name = 'detector_location'
 variables = {'radialDistance': radialDistances, 'axialDistance': axialDistances}
-detectorLocationResults = run_sweep(name, variables, reset=False)
+detectorLocationResults = run_sweep(name, variables=variables, reset=False)
 
 fig, ax = plt.subplots()
 for axialDistance, grp in detectorLocationResults.groupby('axialDistance'):
@@ -62,7 +62,7 @@ Ti_values = np.logspace(np.log10(0.3), 1, 15) # keV
 ni_values = np.logspace(12, 14, 5) # cm^-3
 name = 'plasma_properties'
 variables = {'Ti_peak': Ti_values, 'ni_peak': ni_values}
-plasmaPropertiesResults = run_sweep(name, variables, reset=False)
+plasmaPropertiesResults = run_sweep(name, variables=variables, reset=False)
 
 fig, ax = plt.subplots()
 for ni_peak, grp in plasmaPropertiesResults.groupby('ni_peak'):

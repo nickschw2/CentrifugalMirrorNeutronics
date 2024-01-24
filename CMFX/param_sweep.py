@@ -5,7 +5,7 @@ import shutil
 import pandas as pd
 from itertools import product
 
-def run_sweep(name, variables, reset=False, plot=False):
+def run_sweep(name, variables={}, reset=False):
     if reset:
         results = pd.DataFrame()
 

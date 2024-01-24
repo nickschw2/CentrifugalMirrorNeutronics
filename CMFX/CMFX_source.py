@@ -34,7 +34,6 @@ class CMFX_Source():
 
         self.Al_material = nmm.Material.from_library(name='Aluminum, alloy 6061-O').openmc_material
         self.Steel_material = nmm.Material.from_library(name='Steel, Stainless 316L').openmc_material
-        
 
         self.HDPE_material = nmm.Material.from_library(name='Polyethylene, Non-borated').openmc_material
         self.HDPE_material.set_density("g/cm3", 0.95) # Need to change density to HDPE instead of LDPE
@@ -124,9 +123,6 @@ class CMFX_Source():
         self.plasma_cell.fill = self.plasma_material
         self.centerConductor_cell.fill = self.Steel_material
         self.chamber_cell.fill = self.Al_material
-        
-        # Add volume calculation to plasma so we can normalize flux later
-        self.plasma_cell.volume = np.pi * plasma_length * (plasma_outerRadius**2 - plasma_innerRadius**2)
 
         self.universe = openmc.Universe(cells=[self.void_cell, self.He3_cell, self.detector_cell,
                                                self.HDPE_cell, self.Pb_cell, self.enclosure_cell,
