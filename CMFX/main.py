@@ -37,6 +37,7 @@ convergenceResults['MCSE'] = convergenceResults['std. dev.'] / convergenceResult
 convergenceResults.plot(x='particles', y='MCSE', logx=True)
 plt.xlabel('# Particles')
 plt.ylabel('Monte Carlo Error')
+plt.savefig(f'{figures_folder}/neutronics_convergence.png', dpi=600)
 plt.show()
 
 ### DETECTOR LOCATION SWEEP ###
@@ -55,6 +56,7 @@ ax.set_xlabel('Radial Distance (cm)')
 ax.set_ylabel('Counts/s')
 ax.legend()
 ax.set_ylim(bottom=0)
+plt.savefig(f'{figures_folder}/neutronics_location_sweep.png', dpi=600)
 plt.show()
 
 ### TEMPERATURE AND DENSITY SWEEP ###
@@ -74,4 +76,5 @@ ax.set_yscale('log')
 ax.set_xlabel('$T_{i, \mathrm{peak}}$ (keV)')
 ax.set_ylabel('Counts/s')
 ax.legend()
+plt.savefig(f'{figures_folder}/neutronics_plasma_sweep.png', dpi=600)
 plt.show()

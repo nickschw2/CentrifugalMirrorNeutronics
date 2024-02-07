@@ -5,7 +5,7 @@ import sys
 sys.path.append('../')
 from plot_style import *
 
-reset = True
+reset = False
 
 ### COMPARISON TO ACTUAL CALIBRATION DATA ###
 def get_calibration_data(det_num):

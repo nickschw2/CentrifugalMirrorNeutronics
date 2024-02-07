@@ -56,5 +56,6 @@ void_length = 120
 root = '.'
 sweep_folder = 'param_sweeps'
 examples_folder = 'examples'
+figures_folder = 'figures'
 source_pkl = 'source.pkl'
 file_prefix = 'run'

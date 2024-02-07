@@ -342,7 +342,7 @@ class CMFX_Source():
             fig.colorbar(im, cax=cax, label=r'Flux $\left( \frac{\#}{ \mathrm{cm}^2 \mathrm{s} } \right)$')
             ax1.set_ylabel('y (cm)')
 
-            fig.set_constrained_layout(False)
+            # fig.set_constrained_layout(False)
 
             plt.savefig(f'{self.directory}/flux.png', dpi=200)
             plt.show()
