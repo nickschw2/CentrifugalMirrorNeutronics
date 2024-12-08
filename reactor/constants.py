@@ -42,19 +42,37 @@ chamber_radius = 36.1
 chamber_length = centerCondutor_length
 chamber_thickness = 0.95
 
+### INSULATOR ###
+insulator_outerRadius = 15
+insulator_length = 45
+insulator_innerRadius = 6
+insulator_thickness = 0.5
+insulator_axialStart = 2
+
+### NEW MATERIALS ###
+materials = {
+    "Boron Nitride (BN)": {
+        "density": 1.9,
+        "density_unit": "g/cm3",
+        "percent_type": "ao",
+        "comment": "https://www.bn.saint-gobain.com/products/machinable-ceramics",
+        "elements": {
+            "B":0.5,
+            "N":0.5
+        }
+    }
+}
+
 ### PLASMA ###
-plasma_outerRadius = 21
+plasma_outerRadius = 25
 plasma_innerRadius = 5
 plasma_length = 60
 Ti_min = 0.2 # keV, # Lower limit found in Table VII of https://iopscience.iop.org/article/10.1088/0029-5515/32/4/I07/pdf
 duration = 0.2 # s
-N_points = 1000
 
 ### SIMULATION ###
 void_radius = 150
 void_length = 120
-
-batches = 10
 
 root = '.'
 sweep_folder = 'param_sweeps'

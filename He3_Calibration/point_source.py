@@ -1,16 +1,19 @@
 import openmc
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import neutronics_material_maker as nmm
 from constants import *
 import pickle
 
 class Point_Source():
-    def __init__(self, activity=1, shielding=False, particles=250000, distance=20):
+    def __init__(self, activity=1, shielding=False, particles=250000, distance=20, moderator=True, create_mesh_tally=False):
         self.activity = activity
         self.shielding = shielding
         self.particles = particles
         self.distance = distance
+        self.moderator = moderator
+        self.create_mesh_tally = create_mesh_tally
 
         self.set_materials()
         self.set_geometry()
@@ -62,7 +65,9 @@ class Point_Source():
         HDPE_region = (-HDPE_surface & +detector_cylinder)
         Pb_region = (-Pb_surface & +HDPE_surface)
         enclosure_region = (-enclosure_outerSurface & +enclosure_innerSurface)
-        if not self.shielding:
+        if not self.moderator:
+            void_region = -void_surface & +detector_cylinder
+        elif not self.shielding:
             void_region = -void_surface & +HDPE_surface
         else:
             void_region = -void_surface & +Pb_surface & ~enclosure_region
@@ -80,7 +85,9 @@ class Point_Source():
         self.Pb_cell.fill = self.Pb_material
         self.enclosure_cell.fill = self.Al_material
 
-        self.universe = openmc.Universe(cells=[self.void_cell, self.He3_cell, self.detector_cell, self.HDPE_cell])
+        self.universe = openmc.Universe(cells=[self.void_cell, self.He3_cell, self.detector_cell])
+        if self.moderator:
+            self.universe.add_cells([self.HDPE_cell])
         if self.shielding:
             self.universe.add_cells([self.Pb_cell, self.enclosure_cell])
         self.geometry = openmc.Geometry(root=self.universe)
@@ -111,14 +118,30 @@ class Point_Source():
         self.settings.run_mode = "fixed source"
         self.settings.source = self.source
 
+    def create_mesh(self, N_points=101):
+        mesh = openmc.RegularMesh.from_domain(self.He3_cell, dimension=(N_points, N_points, N_points), mesh_id=0)
+        self.N_points = N_points
+
+        return mesh
+
     def set_tallies(self):
         self.tallies = openmc.Tallies()
 
-        cell_tally = openmc.Tally(name="tally_in_cell")
+        cell_tally = openmc.Tally(name='tally_in_cell')
         cell_filter = openmc.CellFilter(self.He3_cell)
-        cell_tally.scores = ["absorption"]
+        cell_tally.scores = ['absorption', 'flux']
         cell_tally.filters = [cell_filter]
         self.tallies.append(cell_tally)
+
+        if self.create_mesh_tally:
+            # Create mesh tally to score flux
+            mesh_tally = openmc.Tally(name='tallies_on_mesh')
+            # Create mesh filter for tally
+            mesh = self.create_mesh()
+            mesh_filter = openmc.MeshFilter(mesh)
+            mesh_tally.filters = [mesh_filter, cell_filter]
+            mesh_tally.scores = ['flux']
+            self.tallies.append(mesh_tally)
 
     def run(self, directory):
         self.directory = directory
@@ -141,5 +164,71 @@ class Point_Source():
         self.results = self.tally.get_pandas_dataframe()
 
         return self.results
+    
+    def get_flux_map(self):
+        if self.create_mesh_tally:
+            if not hasattr(self, 'sp'):
+                self.sp = openmc.StatePoint(self.sp_filename)
+            
+            flux_tally = self.sp.get_tally(name='tallies_on_mesh')
+            flux_df = flux_tally.get_pandas_dataframe()
+
+            # The dataframe only has the indices for the mesh geometry, not their actual values
+            # We will replace the indices with values
+            x, dx = np.linspace(-He3_diameter / 2, He3_diameter / 2, self.N_points, retstep=True)
+            y, dy = np.linspace(-He3_length / 2, He3_length / 2, self.N_points, retstep=True)
+            z, dz = np.linspace(-He3_diameter / 2, He3_diameter / 2, self.N_points, retstep=True)
+
+            # Normalize to particle / cm^2-s because flux comes in particle-cm
+            # By setting the source strength, all results are totals, not per source particle
+            mesh_cell_volume = dx * dy * dz
+            flux_df['mean'] = flux_df['mean'] / mesh_cell_volume
+            flux_df['std. dev.'] = flux_df['std. dev.'] / mesh_cell_volume
+
+            # Plot the figures such that the y axis height is the same
+            # Note that the ratio is hardcoded in for the specific height and width of the current plasma, look for better solution in future
+            # fig = plt.figure(figsize=(12, 4))
+            # aspect_ratio = np.ptp(z) / np.ptp(x)
+            # gs = fig.add_gridspec(1, 2,  width_ratios=(1, aspect_ratio*1.035),
+            #           left=0.1, right=0.9, bottom=0.1, top=0.9,
+            #           wspace=0.05, hspace=0.05)
+            # ax1 = fig.add_subplot(gs[0])
+            # ax2 = fig.add_subplot(gs[1], sharey=ax1)
+
+            # # The aspect ratio is equal
+            # ax1.set_aspect('equal', adjustable='box')
+            # ax2.set_aspect('equal', adjustable='box')
+
+            # Perpendicular slice
+            # We set the mesh_id to 0
+            slice_df = flux_df[flux_df[(f'mesh 0', 'x')] == int((self.N_points - 1) / 2)]
+            [Z, Y] = np.meshgrid(z, y)
+            values = slice_df['mean'].to_numpy().reshape((self.N_points, self.N_points)).T
+
+            return Z, Y, values
+            # im = ax1.contourf(X, Y, values, levels=15)
+            # ax1.set_xlabel('x (cm)')
+
+            # # Parallel slice
+            # slice_df = flux_df[flux_df[('mesh 1', 'x')] == int((self.N_points - 1) / 2)]
+            # [Z, Y] = np.meshgrid(z, y)
+            # values = slice_df['mean'].to_numpy().reshape((self.N_points, self.N_points)).T
+            # im = ax2.contourf(Z, Y, values, levels=15)
+            # ax2.set_xlabel('z (cm)')
+            # # Remove y tick labels
+            # ax2.tick_params(axis='y', which='both', labelleft=False)
+
+            # # Make colorbar same height as plots
+            # divider = make_axes_locatable(ax2)
+            # cax = divider.append_axes("right", size="2%", pad=0.1)
+            # fig.colorbar(im, cax=cax, label=r'Flux $\left( \frac{\#}{ \mathrm{cm}^2 \mathrm{s} } \right)$')
+            # ax1.set_ylabel('y (cm)')
+
+            # # fig.set_constrained_layout(False)
+
+            # plt.savefig(f'{self.directory}/flux.png', dpi=200)
+            # plt.show()
+        else:
+            print('Did not create mesh tally, so not plotting flux')
 
 

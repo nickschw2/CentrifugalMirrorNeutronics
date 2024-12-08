@@ -5,7 +5,7 @@ import shutil
 import pandas as pd
 from itertools import product
 
-def run_sweep(name, profile='parabolic', variables={}, reset=False):
+def run_sweep(name, variables={}, reset=False):
     if reset:
         results = pd.DataFrame()
 
@@ -34,7 +34,7 @@ def run_sweep(name, profile='parabolic', variables={}, reset=False):
             os.mkdir(path)
 
             # Create and run the simulation
-            source = CMFX_Source(profile=profile, **kwargs)
+            source = CMFX_Source(**kwargs)
             source.run(path)
             result = source.read_results()
             for variable, value in kwargs.items():

@@ -37,6 +37,7 @@ duration = 100 # s
 void_radius = 150
 
 root = '.'
+examples_folder = 'examples'
 sweep_folder = 'param_sweeps'
 source_pkl = 'source.pkl'
 file_prefix = 'run'

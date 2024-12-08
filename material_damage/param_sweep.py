@@ -1,11 +1,12 @@
 import os
-from CMFX_source import *
+from material_damage_source import *
 from constants import *
 import shutil
 import pandas as pd
+import pickle
 from itertools import product
 
-def run_sweep(name, profile='parabolic', variables={}, reset=False):
+def run_sweep(name, variables={}, reset=False):
     if reset:
         results = pd.DataFrame()
 
@@ -34,18 +35,18 @@ def run_sweep(name, profile='parabolic', variables={}, reset=False):
             os.mkdir(path)
 
             # Create and run the simulation
-            source = CMFX_Source(profile=profile, **kwargs)
-            source.run(path)
-            result = source.read_results()
+            sim = MaterialDamageSource(**kwargs)
+            sim.run(path)
+            result = sim.analyze_results()
             for variable, value in kwargs.items():
                 result[variable] = value
             results = pd.concat([results, result])
 
-        results.to_csv(f'{root}/{sweep_folder}/{name}/results.csv')
+        results.to_pickle(f'{root}/{sweep_folder}/{name}/results.pickle')
 
     else:
         try:
-            results = pd.read_csv(f'{root}/{sweep_folder}/{name}/results.csv')
+            results = pd.read_pickle(f'{root}/{sweep_folder}/{name}/results.pickle')
         except FileNotFoundError as error:
             print(error)
             print('Results file does not yet exist. Please set "reset" to True.')
