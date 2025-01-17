@@ -72,6 +72,7 @@ name = f'plasma_properties_{profile}'
 variables = {'Ti_avg': Ti_values, 'ni_avg': ni_values}
 plasmaPropertiesResults = run_sweep(name, profile=profile, variables=variables, reset=False)
 
+# Detector count rate plot
 fig, ax = plt.subplots()
 for ni_avg, grp in plasmaPropertiesResults.groupby('ni_avg'):
     # Convert density to m^-3
@@ -86,7 +87,22 @@ ax.set_ylabel('Counts/s')
 ax.legend()
 plt.savefig(f'{figures_folder}/neutronics_plasma_sweep_{profile}.png', dpi=600)
 plt.close()
-# plt.show()
+
+# Neutron source strength plot
+fig, ax = plt.subplots()
+for ni_avg, grp in plasmaPropertiesResults.groupby('ni_avg'):
+    # Convert density to m^-3
+    grp.plot(ax=ax, x='Ti_avg', y='rate (n/s)', label=f'$n_i$={ni_avg*1e6:.1e} (m$^{{-3}}$)')
+
+ax.set_xscale('log')
+ax.set_xlim(left=1e-1)
+ax.set_yscale('log')
+ax.set_xlabel(r'$T_{i, \mathrm{avg}}$ (keV)')
+ax.set_ylabel('Count rate (n/s)')
+ax.legend()
+plt.savefig(f'{figures_folder}/strength_plasma_sweep_{profile}.png', dpi=600)
+plt.show()
+plt.close()
 
 ### Interpolate plasma properties for neutron count threshold ###
 threshold = 100 #n/s

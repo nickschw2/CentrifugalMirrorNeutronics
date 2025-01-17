@@ -32,6 +32,11 @@ if 'MagB_v1.csv' not in os.listdir('.'):
     data.to_csv('MagB_v1.csv', index=False)
 else:
     data = pd.read_csv('MagB_v1.csv')
+    
+    # Get unique values of r and z
+    rvals = data['X'].unique()
+    zvals = data['Z'].unique()
+
 
 # Define the flux lines to follow based on the midplane
 midplane = data[data['Z'] == 0]

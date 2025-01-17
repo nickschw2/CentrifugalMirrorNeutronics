@@ -39,6 +39,7 @@ def run_sweep(name, profile='parabolic', variables={}, reset=False):
             result = source.read_results()
             for variable, value in kwargs.items():
                 result[variable] = value
+            result['rate (n/s)'] = source.total_neutrons
             results = pd.concat([results, result])
 
         results.to_csv(f'{root}/{sweep_folder}/{name}/results.csv')
