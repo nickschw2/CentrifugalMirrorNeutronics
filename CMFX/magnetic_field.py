@@ -77,7 +77,7 @@ radius = np.linspace(min(innerRadius), max(outerRadius), N_points)
 R, Z = np.meshgrid(radius, z_mid)
 
 # Need to use results from MCTrans++ to determine what the appropriate Mach number is for a given Ti and ni
-file = '/Users/Nick/programs/MCTrans/misc_runs/batch_runs/neutronics/cmfx/results.csv'
+file = 'MCTrans_results.csv'
 results = pd.read_csv(file)
 electronDensity = np.unique(results['electronDensity'].to_numpy()) / 1e6
 electronTemperature = np.unique(results['electronTemperature'].to_numpy())
