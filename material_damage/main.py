@@ -23,7 +23,7 @@ from plot_style import *
 ### STANDARD EXAMPLE ###
 directory = f'{root}/standard'
 source = MaterialDamageSource(material_name='SiC')
-source.run(directory)
+# source.run(directory)
 # source.plot_flux_map()
 
 ### PARAMETER SWEEP ###
@@ -104,7 +104,7 @@ materials_legend = ax.legend(handles=materials_handles, loc='upper left')
 # Create legend for fuels
 fuel_handles = [Patch(facecolor='black', edgecolor='white', label='D-D'),
                Patch(facecolor='black', hatch='////', edgecolor='white', label='D-T')]
-ax.add_artist(ax.legend(handles=fuel_handles, loc='upper right'))
+ax.add_artist(ax.legend(handles=fuel_handles, loc='upper right', bbox_to_anchor=(0.42, 1.0)))
 ax.add_artist(materials_legend)
 
 # Move grid to background
