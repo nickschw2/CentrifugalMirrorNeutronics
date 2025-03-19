@@ -126,6 +126,7 @@ class CMFX_Source():
             C5 = -2.96400E-6 # 1/keV
             C6 = 0 # 1/keV
             C7 = 0 # 1/keV
+            delta_ij = 1 # For like-particles
         elif self.fuel == 'DT':
             # Parameters are taken as the T(d, n)4He reaction fitting parameters from table VII of: https://iopscience.iop.org/article/10.1088/0029-5515/32/4/I07/pdf
             B_G = 34.3827 # keV^(1/2)
@@ -137,6 +138,7 @@ class CMFX_Source():
             C5 = 1.35000e-2 # 1/keV
             C6 = -1.06750e-4 # 1/keV
             C7 = 1.36600e-5 # 1/keV
+            delta_ij = 0 # For unlike-particles
 
         # Eqns 12-14 of above paper
         # Returns <sigma * v> in cm^3 / s
@@ -157,7 +159,7 @@ class CMFX_Source():
                     sigma_v = 0
                 sigma_v_values[i, j] = sigma_v
 
-            return ni_values**2 * sigma_v_values
+            return ni_values**2 / (1 + delta_ij) * sigma_v_values
 
         # Integrate to find the total number of neutrons
         # Units of s^-1
